@@ -196,14 +196,21 @@ jobs:
           DIFF TO ANALYZE:
           $(cat ci_reports/pr_diff.patch | head -500)
           
-          Respond with ONLY valid JSON, no other text."
-          
-          # Run Claude Code in headless mode — text output is the raw JSON response
+          Respond with ONLY valid JSON, no other text. Do NOT wrap in markdown code blocks or backticks."
+
+          # Run Claude Code in headless mode; strip markdown fences if present
           claude \
             --model claude-haiku-4-5 \
             --output-format text \
             -p "$PCI_PROMPT" \
-            2>/dev/null > ci_reports/claude_pci_analysis.json \
+            2>/dev/null \
+            | python3 -c "
+          import sys, re
+          text = sys.stdin.read().strip()
+          text = re.sub(r'^[^\[{]*', '', text, count=1)
+          text = re.sub(r'[^\]}]*$', '', text, count=1)
+          print(text)
+          " > ci_reports/claude_pci_analysis.json \
             || echo '{"overall_pci_status": "ERROR", "critical_high_count": 0, "summary": "Claude Code analysis failed"}' > ci_reports/claude_pci_analysis.json
           
           # Extract key metrics
@@ -387,14 +394,22 @@ jobs:
             \"improvements_suggested\": [\"suggestion 1\"],
             \"pci_dss_notes\": \"Brief note on PCI DSS compliance\",
             \"reviewer_summary\": \"2-3 sentence summary for PR author\"
-          }"
-          
-          # Run Claude-as-Judge in headless mode — text output is the raw JSON response
+          }
+          Do NOT wrap in markdown code blocks or backticks. Output raw JSON only."
+
+          # Run Claude-as-Judge in headless mode; strip markdown fences if present
           claude \
             --model claude-sonnet-4-5 \
             --output-format text \
             -p "$JUDGE_PROMPT" \
-            2>/dev/null > ci_reports/compliance_score.json \
+            2>/dev/null \
+            | python3 -c "
+          import sys, re
+          text = sys.stdin.read().strip()
+          text = re.sub(r'^[^\[{]*', '', text, count=1)
+          text = re.sub(r'[^\]}]*$', '', text, count=1)
+          print(text)
+          " > ci_reports/compliance_score.json \
             || echo '{"score": 0, "grade": "ERROR", "gate_decision": "FAIL", "reviewer_summary": "Scoring failed — manual review required"}' > ci_reports/compliance_score.json
           
           # Extract score and decision
