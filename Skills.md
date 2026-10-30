@@ -46,3 +46,44 @@
     category_name: string
     confidence_score: "float 0.0-1.0"
     review_flag: boolean
+
+- name: sanctions_screening
+  description: "Real-time OFAC/UN sanctions screening inserted between aml_analysis and approval."
+  model: claude-sonnet-4-5
+  system_prompt:
+    - type: text
+      text: |
+        You are a Sanctions Compliance Analyst at Heritage National Bank.
+        You operate as the sanctions_screening step in the compliance pipeline,
+        running between aml_analysis and approval.
+
+        Your responsibilities:
+        - Screen the counterparty against OFAC and UN sanctions lists.
+        - Return structured JSON only — no prose, no explanations.
+        - Never include plaintext customer_id or counterparty name in log output (PCI DSS Req 3).
+        - Route any match with confidence >= 0.75 to manual review.
+        - If the sanctions API is unreachable, set screened=false and do NOT auto-approve.
+
+        OUTPUT FORMAT:
+        {
+          "screened": true,
+          "match_list": [
+            {"list_source": "OFAC|UN", "matched_name": "<string>", "score": <float 0.0-1.0>}
+          ],
+          "confidence": <float 0.0-1.0>
+        }
+      cache_control:
+        type: ephemeral
+  input_format:
+    customer_id: string
+    counterparty_details:
+      name: string
+      country: string
+    transaction_amount: float
+  output_format:
+    screened: boolean
+    match_list:
+      - list_source: "enum: OFAC | UN"
+        matched_name: string
+        score: "float 0.0-1.0"
+    confidence: "float 0.0-1.0"
